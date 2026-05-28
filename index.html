@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Creador de Manifiestos</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+    :root {
+      --red:#db0011;--red-dark:#a8000d;--red-light:#fff0f1;--red-border:#fad4d7;
+      --grey-50:#f8f8f8;--grey-100:#f0f0f0;--grey-200:#e0e0e0;--grey-400:#9e9e9e;
+      --grey-600:#666;--grey-800:#333;--black:#1a1a1a;
+      --ok:#1a7f4b;--ok-bg:#f0faf5;--ok-border:#a8dfc3;
+      --warn:#b45309;--warn-bg:#fffbeb;
+      --err:#db0011;--err-bg:#fff0f1;--err-border:#fad4d7;
+      --info:#1d4ed8;--info-bg:#eff6ff;--info-border:#bfdbfe;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{font-size:14px}
+    body{background:var(--grey-50);color:var(--black);font-family:'Inter',-apple-system,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 16px}
+    .container{width:100%;max-width:520px;display:flex;flex-direction:column;gap:12px}
+
+    /* ── Columns reference panel ── */
+    .cols-panel{background:#fff;border:1px solid var(--grey-200);border-radius:4px;overflow:hidden}
+    .cols-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--grey-100);cursor:pointer;user-select:none}
+    .cols-header-left{display:flex;align-items:center;gap:8px}
+    .cols-title{font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--grey-400)}
+    .cols-badge{background:var(--red-light);color:var(--red);font-size:.65rem;font-weight:600;padding:2px 7px;border-radius:10px}
+    .cols-toggle{font-size:.7rem;color:var(--grey-400);transition:transform .2s}
+    .cols-toggle.open{transform:rotate(180deg)}
+    .cols-body{padding:12px 16px;display:flex;flex-direction:column;gap:6px;animation:fadeUp .15s ease}
+    .cols-body.hidden{display:none}
+    .col-map-row{display:flex;align-items:center;gap:0;font-size:.72rem;border:1px solid var(--grey-100);border-radius:3px;overflow:hidden}
+    .col-src{flex:1;padding:5px 9px;background:var(--grey-50);color:var(--grey-800);font-family:'Courier New',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .col-arrow{padding:4px 6px;color:var(--grey-400);background:#fff;font-size:.7rem;flex-shrink:0}
+    .col-dest{flex:1;padding:5px 9px;background:#fff;color:var(--info);font-family:'Courier New',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .col-map-row.static .col-dest{color:var(--ok)}
+    .cols-legend{display:flex;gap:12px;padding:8px 0 2px;border-top:1px solid var(--grey-100);margin-top:4px}
+    .legend-item{display:flex;align-items:center;gap:5px;font-size:.67rem;color:var(--grey-600)}
+    .legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .legend-dot.src{background:var(--info)}
+    .legend-dot.static{background:var(--ok)}
+
+    /* ── Drop zone ── */
+    .drop-card{background:#fff;border:1px solid var(--grey-200);border-radius:4px;overflow:hidden}
+    .drop-zone{padding:40px 32px;text-align:center;cursor:pointer;border:2px dashed var(--grey-200);margin:16px;border-radius:4px;transition:border-color .2s,background .2s;user-select:none;outline:none}
+    .drop-zone:hover,.drop-zone:focus{border-color:var(--red);background:var(--red-light)}
+    .drop-zone.over{border-color:var(--red);background:var(--red-light);box-shadow:0 0 0 4px rgba(219,0,17,.06)}
+    .drop-icon{width:40px;height:40px;background:var(--red-light);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;transition:transform .2s}
+    .drop-zone:hover .drop-icon{transform:translateY(-3px)}
+    .drop-icon svg{width:18px;height:18px;color:var(--red)}
+    .drop-title{font-size:.88rem;font-weight:500;color:var(--grey-800);margin-bottom:4px}
+    .drop-sub{font-size:.75rem;color:var(--grey-400)}
+    .drop-sub span{color:var(--red);font-weight:500}
+    .file-chip{display:flex;align-items:center;gap:10px;margin:0 16px 16px;padding:10px 14px;background:var(--grey-50);border:1px solid var(--grey-200);border-radius:4px;animation:fadeUp .2s ease}
+    .file-chip.hidden{display:none}
+    .file-chip-icon{width:28px;height:28px;background:var(--red-light);border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .file-chip-icon svg{width:14px;height:14px;color:var(--red)}
+    .file-chip-name{flex:1;font-size:.78rem;font-weight:500;color:var(--grey-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .file-chip-size{font-size:.7rem;color:var(--grey-400)}
+    .btn-remove{background:none;border:none;cursor:pointer;color:var(--grey-400);padding:4px;border-radius:3px;display:flex;align-items:center;transition:color .15s,background .15s}
+    .btn-remove:hover{color:var(--red);background:var(--red-light)}
+    .btn-remove svg{width:14px;height:14px}
+
+    /* ── Progress ── */
+    .progress-card{background:#fff;border:1px solid var(--grey-200);border-radius:4px;padding:16px 20px;animation:fadeUp .2s ease}
+    .progress-card.hidden{display:none}
+    .prog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .prog-label{font-size:.75rem;color:var(--grey-600)}
+    .prog-pct{font-size:.75rem;font-weight:600;color:var(--red)}
+    .prog-track{background:var(--grey-100);border-radius:2px;height:3px;overflow:hidden}
+    .prog-bar{height:100%;background:var(--red);border-radius:2px;transition:width .3s ease}
+
+    /* ── Buttons ── */
+    .btn-run{width:100%;padding:13px;background:var(--red);color:#fff;border:none;border-radius:4px;font-family:'Inter',sans-serif;font-size:.82rem;font-weight:500;letter-spacing:.02em;cursor:pointer;transition:background .2s,transform .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+    .btn-run:hover:not(:disabled){background:var(--red-dark);transform:translateY(-1px)}
+    .btn-run:disabled{background:var(--grey-200);color:var(--grey-400);cursor:not-allowed;transform:none}
+    .btn-run svg{width:15px;height:15px}
+    .btn-run svg.spin{animation:spin .8s linear infinite}
+    .btn-dl{width:100%;padding:13px;background:transparent;color:var(--red);border:1.5px solid var(--red);border-radius:4px;font-family:'Inter',sans-serif;font-size:.82rem;font-weight:500;cursor:pointer;transition:background .2s,transform .15s;display:flex;align-items:center;justify-content:center;gap:8px;animation:fadeUp .3s ease}
+    .btn-dl.hidden{display:none}
+    .btn-dl:hover{background:var(--red-light);transform:translateY(-1px)}
+    .btn-dl svg{width:15px;height:15px}
+
+    /* ── Log ── */
+    .log-card{background:#fff;border:1px solid var(--grey-200);border-radius:4px;overflow:hidden}
+    .log-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--grey-100)}
+    .log-title{font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--grey-400)}
+    .btn-clear{background:none;border:none;cursor:pointer;font-size:.68rem;color:var(--grey-400);font-family:'Inter',sans-serif;padding:2px 6px;border-radius:3px;transition:color .15s}
+    .btn-clear:hover{color:var(--grey-800)}
+    .log-body{padding:12px 16px;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;scroll-behavior:smooth}
+    .log-body::-webkit-scrollbar{width:3px}
+    .log-body::-webkit-scrollbar-thumb{background:var(--grey-200);border-radius:2px}
+    .log-entry{display:flex;align-items:flex-start;gap:8px;font-size:.73rem;line-height:1.5;animation:slideIn .1s ease;padding:5px 10px;border-radius:3px}
+    .log-entry.info{color:var(--info);background:var(--info-bg)}
+    .log-entry.ok{color:var(--ok);background:var(--ok-bg)}
+    .log-entry.warn{color:var(--warn);background:var(--warn-bg)}
+    .log-entry.err{color:var(--err);background:var(--err-bg)}
+    .log-entry.dim{color:var(--grey-400);background:transparent}
+    .log-dot{flex-shrink:0;margin-top:4px;width:5px;height:5px;border-radius:50%;background:currentColor}
+
+    /* ── Col alert ── */
+    .col-alert{background:var(--err-bg);border:1px solid var(--err-border);border-left:3px solid var(--red);border-radius:4px;padding:14px 16px;animation:fadeUp .25s ease}
+    .col-alert.hidden{display:none}
+    .col-alert-title{font-size:.78rem;font-weight:600;color:var(--red);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+    .col-alert-title svg{width:14px;height:14px}
+    .col-alert-list{display:flex;flex-direction:column;gap:4px}
+    .col-alert-item{font-size:.73rem;color:var(--grey-800);font-family:'Courier New',monospace;background:rgba(219,0,17,.06);padding:3px 8px;border-radius:3px}
+
+    .hidden{display:none!important}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes slideIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+    @media(max-width:480px){body{padding:16px 12px;align-items:flex-start}}
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Columns reference panel -->
+  <div class="cols-panel">
+    <div class="cols-header" id="colsToggle" role="button" tabindex="0" aria-expanded="false">
+      <div class="cols-header-left">
+        <span class="cols-title">Columnas del archivo fuente</span>
+        <span class="cols-badge" id="colsCount">17 requeridas</span>
+      </div>
+      <span class="cols-toggle" id="colsArrow">▼</span>
+    </div>
+    <div class="cols-body hidden" id="colsBody">
+      <div id="colMapList"></div>
+      <div class="cols-legend">
+        <div class="legend-item"><span class="legend-dot src"></span>Del archivo fuente</div>
+        <div class="legend-item"><span class="legend-dot static"></span>Valor fijo automático</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drop zone -->
+  <div class="drop-card">
+    <div id="drop" class="drop-zone" tabindex="0" role="button" aria-label="Cargar archivo Excel">
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <p class="drop-title">Arrastra tu archivo aquí</p>
+      <p class="drop-sub">o haz clic para seleccionar &nbsp;·&nbsp; <span>.xlsx / .xls</span></p>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" hidden />
+    </div>
+    <div id="fileInfo" class="file-chip hidden">
+      <div class="file-chip-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </div>
+      <span id="fileName" class="file-chip-name"></span>
+      <span id="fileSize" class="file-chip-size"></span>
+      <button id="clearFile" class="btn-remove" aria-label="Quitar archivo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Column error alert -->
+  <div id="colAlert" class="col-alert hidden">
+    <div class="col-alert-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      Columnas no encontradas en el archivo
+    </div>
+    <div id="colAlertList" class="col-alert-list"></div>
+  </div>
+
+  <!-- Progress -->
+  <div id="progSection" class="progress-card hidden">
+    <div class="prog-top">
+      <span id="progLabel" class="prog-label">Procesando…</span>
+      <span id="progPct" class="prog-pct">0%</span>
+    </div>
+    <div class="prog-track"><div id="progBar" class="prog-bar" style="width:0%"></div></div>
+  </div>
+
+  <!-- Run button -->
+  <button id="runBtn" class="btn-run" disabled>
+    <svg id="runIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="5 3 19 12 5 21 5 3"/>
+    </svg>
+    Generar Archivos
+  </button>
+
+  <!-- Download button -->
+  <button id="dlBtn" class="btn-dl hidden">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    Descargar ZIP
+  </button>
+
+  <!-- Log -->
+  <div class="log-card">
+    <div class="log-header">
+      <span class="log-title">Actividad</span>
+      <button id="clearLog" class="btn-clear">Limpiar</button>
+    </div>
+    <div id="logArea" class="log-body">
+      <div class="log-entry dim"><span class="log-dot"></span>Esperando archivo…</div>
+    </div>
+  </div>
+
+</div>
+<script>
+'use strict';
+
+const REQUIRED_COLUMNS = ['GUIA','Package Number','CONSIGNEE (CNNE)','CNNE ADDRESS','CNNE CITY NAME','CNNE PH NUMBER','CNNE ZIP CODE','PARCEL Weight','PRODUCT DESCRIPTION','TOTAL QTY OF ITEMS IN PARCEL','CURRENCY','TOTAL DECLARED VALUE','HU','NUMERO IDENTIFICACION','SPANISH DESCRIPTION','SHIPPERS COUNTRY CODE','EMAIL'];
+
+/* Column map definition: src = column from file, dest = output header, static = fixed value */
+const COL_MAP_DEF = [
+  { dest:'MAWB',                            src:'GUIA' },
+  { dest:'TRACKING NUMBER(AWB)',             src:'Package Number' },
+  { dest:'SHIPPER',                          static:'HOUND EXPRESS LLC' },
+  { dest:'SHIPPER ADDRESS',                  static:'805 UNION PACIFIC BOULEVARD' },
+  { dest:'CITY NAME SHIPPER',                static:'LAREDO' },
+  { dest:'CITY CODE SHIPPER AWB',            static:'LDR' },
+  { dest:'COUNTRY NAME SHIPPER',             static:'USA' },
+  { dest:'COUNTRY CODE SHIPPER',             static:'US' },
+  { dest:'CONSIGNEE',                        src:'CONSIGNEE (CNNE)' },
+  { dest:'CONSIGNEE ADDRESS',                src:'CNNE ADDRESS' },
+  { dest:'CITY NAME CONSIGNEE',              src:'CNNE CITY NAME' },
+  { dest:'TEL CONSIGNEE',                    src:'CNNE PH NUMBER' },
+  { dest:'ZIP CODE CONSIGNEE',               src:'CNNE ZIP CODE' },
+  { dest:'COUNTRY NAME CONSIGNEE',           static:'MEXICO' },
+  { dest:'COUNTRY CODE CONSIGNEE',           src:'CNEE COUNTRY CODE (auto MX)' },
+  { dest:'WEIGHT',                           src:'PARCEL Weight' },
+  { dest:'UNIT OF WEIGHT (kg)',              static:'KG' },
+  { dest:'PRODUCT DESCRIPTION',              src:'PRODUCT DESCRIPTION' },
+  { dest:'TOTAL QTY',                        src:'TOTAL QTY OF ITEMS IN PARCEL' },
+  { dest:'CURRENCY (USD)',                   src:'CURRENCY' },
+  { dest:'TOTAL DECLARE VALUE',              src:'TOTAL DECLARED VALUE' },
+  { dest:'Bag ID',                           src:'HU' },
+  { dest:'CLIENT REF.NO',                    src:'Package Number' },
+  { dest:'HS code',                          static:'-' },
+  { dest:'STATE NAME CONSIGNEE',             src:'CNNE CITY NAME' },
+  { dest:'RFC',                              src:'NUMERO IDENTIFICACION' },
+  { dest:'CURP',                             src:'NUMERO IDENTIFICACION' },
+  { dest:'PRODUCT DESCRIPTION SPANISH NAME', src:'SPANISH DESCRIPTION' },
+  { dest:'SHIPPERS COUNTRY CODE',            src:'SHIPPERS COUNTRY CODE' },
+  { dest:'Email Consignee',                  src:'EMAIL' },
+  { dest:"CLIENT'S TAX ID",                  static:'30-1014481' },
+  { dest:'BUSINESS NAME / E-COMMERCE',       static:'HOUND EXPRESS' },
+  { dest:'Country Origin E-commerce',        static:'USA' },
+  { dest:'ITEM SKU',                         static:'' },
+];
+
+/* Render column map panel */
+(function renderColMap() {
+  const list = document.getElementById('colMapList');
+  const frag = document.createDocumentFragment();
+  COL_MAP_DEF.forEach(col => {
+    const row = document.createElement('div');
+    row.className = 'col-map-row' + (col.static !== undefined ? ' static' : '');
+    const srcVal = col.static !== undefined
+      ? `<span style="color:var(--ok);font-style:italic">"${col.static || '(vacío)'}"</span>`
+      : `<span>${col.src}</span>`;
+    row.innerHTML = `<span class="col-src">${col.src || '<i style="color:var(--grey-400)">fijo</i>'}</span><span class="col-arrow">→</span><span class="col-dest">${col.dest}</span>`;
+    if (col.static !== undefined) {
+      row.querySelector('.col-src').innerHTML = `<i style="color:var(--grey-400)">${col.static || '(vacío)'}</i>`;
+    }
+    frag.appendChild(row);
+  });
+  list.appendChild(frag);
+  document.getElementById('colsCount').textContent = REQUIRED_COLUMNS.length + ' requeridas';
+})();
+
+/* Toggle panel */
+const colsToggle = document.getElementById('colsToggle');
+const colsBody   = document.getElementById('colsBody');
+const colsArrow  = document.getElementById('colsArrow');
+colsToggle.addEventListener('click', () => {
+  const open = !colsBody.classList.contains('hidden');
+  colsBody.classList.toggle('hidden', open);
+  colsArrow.classList.toggle('open', !open);
+  colsToggle.setAttribute('aria-expanded', String(!open));
+});
+colsToggle.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); colsToggle.click(); } });
+
+/* ─── City → State map ── */
+const cityToState={'ciudad de méxico':'Ciudad de México','cdmx':'Ciudad de México','mexico city':'Ciudad de México','df':'Ciudad de México','distrito federal':'Ciudad de México','guadalajara':'Jalisco','zapopan':'Jalisco','tlaquepaque':'Jalisco','tonalá':'Jalisco','tlajomulco':'Jalisco','puerto vallarta':'Jalisco','monterrey':'Nuevo León','san pedro garza garcía':'Nuevo León','guadalupe':'Nuevo León','apodaca':'Nuevo León','escobedo':'Nuevo León','santa catarina':'Nuevo León','toluca':'Estado de México','ecatepec':'Estado de México','naucalpan':'Estado de México','tlalnepantla':'Estado de México','puebla':'Puebla','cholula':'Puebla','tehuacán':'Puebla','querétaro':'Querétaro','san juan del río':'Querétaro','tijuana':'Baja California','mexicali':'Baja California','ensenada':'Baja California','la paz':'Baja California Sur','cabo san lucas':'Baja California Sur','hermosillo':'Sonora','ciudad obregón':'Sonora','nogales':'Sonora','chihuahua':'Chihuahua','ciudad juárez':'Chihuahua','saltillo':'Coahuila','torreón':'Coahuila','durango':'Durango','culiacán':'Sinaloa','mazatlán':'Sinaloa','tepic':'Nayarit','zacatecas':'Zacatecas','san luis potosí':'San Luis Potosí','aguascalientes':'Aguascalientes','colima':'Colima','manzanillo':'Colima','morelia':'Michoacán','acapulco':'Guerrero','chilpancingo':'Guerrero','oaxaca':'Oaxaca','tuxtla gutiérrez':'Chiapas','tapachula':'Chiapas','veracruz':'Veracruz de Ignacio de la Llave','xalapa':'Veracruz de Ignacio de la Llave','coatzacoalcos':'Veracruz de Ignacio de la Llave','villahermosa':'Tabasco','campeche':'Campeche','mérida':'Yucatán','valladolid':'Yucatán','cancún':'Quintana Roo','playa del carmen':'Quintana Roo','chetumal':'Quintana Roo','tulum':'Quintana Roo','pachuca':'Hidalgo','tlaxcala':'Tlaxcala','cuernavaca':'Morelos','cuautla':'Morelos','león':'Guanajuato','guanajuato':'Guanajuato','irapuato':'Guanajuato','celaya':'Guanajuato'};
+const keywordToCategory=[{keywords:['iphone','samsung','xiaomi','huawei','motorola','smartphone','teléfono','telefono','celular'],category:'TELEFONO'},{keywords:['macbook','laptop','notebook','chromebook'],category:'LAPTOP'},{keywords:['ipad','tablet','tab','kindle'],category:'TABLET'},{keywords:['airpods','audifono','headset','headphone','auricular','earphone'],category:'AUDIFONOS'},{keywords:['playstation','ps4','ps5','xbox','nintendo','switch'],category:'VIDEOJUEGO'},{keywords:['control','mando','controller','joystick'],category:'CONTROL'},{keywords:['monitor','pantalla','display'],category:'MONITOR'},{keywords:['cámara','camara','camera','gopro','webcam'],category:'CAMARA'},{keywords:['bocina','speaker','parlante','jbl','bose'],category:'BOCINA'},{keywords:['microfono','micrófono','microphone'],category:'MICROFONO'},{keywords:['perfume','eau','cologne','fragancia','lattafa','armaf'],category:'PERFUME'},{keywords:['maquillaje','cosmetico','makeup','labial'],category:'COSMETICO'},{keywords:['reloj','watch','casio','fossil'],category:'RELOJ'},{keywords:['anillo','collar','pulsera','joya','oro','plata'],category:'JOYA'},{keywords:['camisa','playera','pants','pantalon','jeans','vestido','blusa','sudadera'],category:'ROPA'},{keywords:['zapato','tenis','sandalias','boots','crocs','nike','adidas'],category:'CALZADO'},{keywords:['mochila','backpack','bolsa','bag','cartera'],category:'BOLSA'},{keywords:['juguete','toy','lego','barbie','funko'],category:'JUGUETE'},{keywords:['herramienta','tool','taladro','drill'],category:'HERRAMIENTA'},{keywords:['cable','charger','cargador','adaptador','hdmi','usb'],category:'CABLE'},{keywords:['bateria','battery','power bank'],category:'BATERIA'},{keywords:['memoria','ssd','disco duro'],category:'ALMACENAMIENTO'}];
+
+function getStateFromCity(city){if(!city)return'';const n=city.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();if(cityToState[n])return cityToState[n];for(const[key,st]of Object.entries(cityToState)){if(n.includes(key)||key.includes(n.split(' ')[0]))return st;}return'';}
+function getCategoryFromDescription(desc){if(!desc)return'';const n=desc.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');for(const rule of keywordToCategory){for(const kw of rule.keywords){if(n.includes(kw))return rule.category;}}return'ACCESORIO';}
+
+const state={file:null,zipBlob:null,processing:false};
+const $=id=>document.getElementById(id);
+const dom={drop:$('drop'),fileInput:$('fileInput'),fileInfo:$('fileInfo'),fileName:$('fileName'),fileSize:$('fileSize'),clearFile:$('clearFile'),runBtn:$('runBtn'),runIcon:$('runIcon'),progSection:$('progSection'),progLabel:$('progLabel'),progPct:$('progPct'),progBar:$('progBar'),logArea:$('logArea'),clearLog:$('clearLog'),dlBtn:$('dlBtn'),colAlert:$('colAlert'),colAlertList:$('colAlertList')};
+
+function log(msg,type='info'){const p=document.createElement('div');p.className=`log-entry ${type}`;const dot=document.createElement('span');dot.className='log-dot';const txt=document.createElement('span');txt.textContent=msg;p.appendChild(dot);p.appendChild(txt);dom.logArea.appendChild(p);dom.logArea.scrollTop=dom.logArea.scrollHeight;}
+function setProgress(pct,label){const v=Math.max(0,Math.min(100,pct));dom.progBar.style.width=v+'%';dom.progPct.textContent=Math.round(v)+'%';if(label)dom.progLabel.textContent=label;}
+function showProgress(v){dom.progSection.classList.toggle('hidden',!v);}
+function fmtBytes(b){return b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(2)+' MB';}
+const yield_=()=>new Promise(r=>setTimeout(r,0));
+function isExcel(f){const e=f.name.split('.').pop().toLowerCase();return e==='xlsx'||e==='xls';}
+function showColAlert(missing){if(!missing.length){dom.colAlert.classList.add('hidden');return;}dom.colAlertList.innerHTML='';missing.forEach(col=>{const div=document.createElement('div');div.className='col-alert-item';div.textContent=col;dom.colAlertList.appendChild(div);});dom.colAlert.classList.remove('hidden');}
+function validateColumns(rows){if(!rows.length)return[];const available=Object.keys(rows[0]);const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();const normAvail=available.map(norm);return REQUIRED_COLUMNS.filter(req=>!normAvail.includes(norm(req)));}
+function handleFile(f){if(!isExcel(f)){log(`"${f.name}" no es un archivo Excel válido`,'err');return;}state.file=f;dom.fileName.textContent=f.name;dom.fileSize.textContent=fmtBytes(f.size);dom.fileInfo.classList.remove('hidden');dom.runBtn.disabled=false;dom.dlBtn.classList.add('hidden');dom.colAlert.classList.add('hidden');showProgress(false);log(`Archivo listo: ${f.name}`,'ok');}
+function clearFile(){state.file=null;state.zipBlob=null;dom.fileInput.value='';dom.fileInfo.classList.add('hidden');dom.dlBtn.classList.add('hidden');dom.colAlert.classList.add('hidden');showProgress(false);dom.runBtn.disabled=true;log('Archivo eliminado.','dim');}
+
+async function parseExcel(file){const buffer=await file.arrayBuffer();const wb=XLSX.read(buffer,{type:'array'});const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();const sheetName=wb.SheetNames.find(n=>norm(n)==='envios')||wb.SheetNames[0];log(`Hoja detectada: "${sheetName}"`,'dim');const ws=wb.Sheets[sheetName];const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});if(!rows.length)throw new Error('La hoja está vacía.');return rows;}
+function groupByGuia(rows){const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'').trim();const keys=Object.keys(rows[0]);const guiaKey=keys.find(k=>norm(k)==='guia');if(!guiaKey)throw new Error('Columna GUIA no encontrada.');const map=new Map();let skipped=0;for(const row of rows){const guia=String(row[guiaKey]||'').trim();if(!/^\d+$/.test(guia)){skipped++;continue;}if(!map.has(guia))map.set(guia,[]);map.get(guia).push(row);}if(skipped)log(`${skipped} filas omitidas (GUIA no numérica).`,'dim');return map;}
+function enrichRowsLocally(rows){return rows.map(row=>{const city=String(row['CNNE CITY NAME']||'').trim();const desc=String(row['PRODUCT DESCRIPTION']||'').trim();return{state:getStateFromCity(city),category:getCategoryFromDescription(desc)};});}
+
+const COL_MAP=[
+  {h:'MAWB',v:(r)=>r['GUIA']||''},{h:'TRACKING NUMBER(AWB)',v:(r)=>r['Package Number']||''},{h:'SHIPPER',v:()=>'HOUND EXPRESS LLC'},{h:'SHIPPER ADDRESS',v:()=>'805 UNION PACIFIC BOULEVARD'},{h:'CITY NAME SHIPPER',v:()=>'LAREDO'},{h:'CITY CODE SHIPPER AWB',v:()=>'LDR'},{h:'COUNTRY NAME SHIPPER',v:()=>'USA'},{h:'COUNTRY CODE SHIPPER',v:()=>'US'},{h:'CONSIGNEE',v:(r)=>r['CONSIGNEE (CNNE)']||''},{h:'CONSIGNEE ADDRESS',v:(r)=>r['CNNE ADDRESS']||''},{h:'CITY NAME CONSIGNEE',v:(r)=>r['CNNE CITY NAME']||''},{h:'TEL CONSIGNEE',v:(r)=>r['CNNE PH NUMBER']||''},{h:'ZIP CODE CONSIGNEE',v:(r)=>r['CNNE ZIP CODE']||''},{h:'COUNTRY NAME CONSIGNEE',v:()=>'MEXICO'},{h:'COUNTRY CODE CONSIGNEE',v:(r)=>r['CNEE COUNTRY CODE']||'MX'},{h:'WEIGHT',v:(r)=>parseFloat(((parseFloat(r['PARCEL Weight'])||0)/1000).toFixed(3))},{h:'UNIT OF WEIGHT (kg)',v:()=>'KG'},{h:'PRODUCT DESCRIPTION',v:(r)=>r['PRODUCT DESCRIPTION']||''},{h:'TOTAL QTY',v:(r)=>r['TOTAL QTY OF ITEMS IN PARCEL']||''},{h:'CURRENCY (USD)',v:(r)=>r['CURRENCY']||'USD'},{h:'TOTAL DECLARE VALUE',v:(r)=>parseFloat(r['TOTAL DECLARED VALUE'])||''},{h:'Bag ID',v:(r)=>r['HU']||''},{h:'CLIENT REF.NO',v:(r)=>r['Package Number']||''},{h:'HS code',v:()=>'-'},{h:'STATE NAME CONSIGNEE',v:(r)=>r['CNNE CITY NAME']||''},{h:'RFC',v:(r)=>r['NUMERO IDENTIFICACION']||''},{h:'CURP',v:(r)=>r['NUMERO IDENTIFICACION']||''},{h:'PRODUCT DESCRIPTION SPANISH NAME',v:(r)=>r['SPANISH DESCRIPTION']||''},{h:'SHIPPERS COUNTRY CODE',v:(r)=>{const o=String(r['SHIPPERS COUNTRY CODE']||'').trim().toUpperCase();return o==='US'?'USA':o==='CN'?'CHN':o==='HK'?'HKG':o||'USA';}},{h:'Email Consignee',v:(r)=>r['EMAIL']||''},{h:"CLIENT'S TAX ID",v:()=>'30-1014481'},{h:'BUSINESS NAME DENOMINATION OF THE E-COMMERCE PLATFORM(S)',v:()=>'HOUND EXPRESS'},{h:'Country Origin of E-commerce Platform',v:()=>'USA'},{h:'ITEM SKU',v:()=>''},
+];
+
+function buildFile(guia,rows,enrichedSlice){const headers=COL_MAP.map(c=>c.h);const dataArr=rows.map((row,i)=>{const e=enrichedSlice[i]||{state:'',category:''};return COL_MAP.map(col=>{try{return col.v(row,e)??'';}catch{return'';} });});const ws=XLSX.utils.aoa_to_sheet([headers,...dataArr]);ws['!cols']=headers.map((h,ci)=>{const maxLen=Math.max(h.length,...dataArr.map(r=>String(r[ci]??'').length));return{wch:Math.min(maxLen+2,60)};});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'sheet1');return XLSX.write(wb,{bookType:'xlsx',type:'base64',bookSST:false});}
+async function buildZip(guiaMap,allEnriched,rowIndex,onProgress){const zip=new JSZip();const total=guiaMap.size;let done=0;for(const[guia,rows]of guiaMap.entries()){const start=rowIndex.get(guia);const slice=allEnriched.slice(start,start+rows.length);zip.file(`LDO_CAN_${guia}.xlsx`,buildFile(guia,rows,slice),{base64:true});done++;onProgress(85+done/total*15,`Empaquetando ${guia}…`);await yield_();}onProgress(99,'Comprimiendo ZIP…');const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE'});onProgress(100,'¡Listo!');return blob;}
+function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=Object.assign(document.createElement('a'),{href:url,download:name});a.style.display='none';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},1000);}
+
+async function process(){if(!state.file||state.processing)return;state.processing=true;dom.colAlert.classList.add('hidden');dom.dlBtn.classList.add('hidden');dom.runBtn.disabled=true;dom.runIcon.classList.add('spin');showProgress(true);setProgress(0,'Leyendo archivo…');try{setProgress(5,'Parseando Excel…');await yield_();const rows=await parseExcel(state.file);log(`${rows.length} filas detectadas`,'ok');const missing=validateColumns(rows);if(missing.length){showColAlert(missing);missing.forEach(col=>log(`Columna no encontrada: "${col}"`,'err'));log(`Faltan ${missing.length} columna(s).`,'warn');}else{log('Todas las columnas requeridas están presentes','ok');}setProgress(15,'Agrupando por guía…');await yield_();const guiaMap=groupByGuia(rows);log(`${guiaMap.size} guías únicas encontradas`,'ok');const allRows=[];const rowIndex=new Map();for(const[guia,r]of guiaMap.entries()){rowIndex.set(guia,allRows.length);allRows.push(...r);}setProgress(25,'Procesando categorías y estados…');await yield_();const allEnriched=enrichRowsLocally(allRows);log('Procesamiento local completado','ok');setProgress(75,'Generando archivos...');await yield_();const zipBlob=await buildZip(guiaMap,allEnriched,rowIndex,setProgress);state.zipBlob=zipBlob;log(`ZIP listo · ${guiaMap.size} archivos · ${fmtBytes(zipBlob.size)}`,'ok');dom.dlBtn.classList.remove('hidden');downloadBlob(zipBlob,'manifiestos.zip');log('Descarga iniciada: manifiestos.zip','ok');}catch(err){setProgress(0,'Error');String(err.message).split('\n').forEach(l=>log(l,'err'));console.error('[NLUGen]',err);}finally{state.processing=false;dom.runBtn.disabled=!state.file;dom.runIcon.classList.remove('spin');}}
+
+dom.drop.addEventListener('click',()=>dom.fileInput.click());
+dom.drop.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();dom.fileInput.click();}});
+dom.fileInput.addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
+dom.clearFile.addEventListener('click',clearFile);
+dom.drop.addEventListener('dragover',e=>{e.preventDefault();dom.drop.classList.add('over');});
+dom.drop.addEventListener('dragleave',e=>{if(!dom.drop.contains(e.relatedTarget))dom.drop.classList.remove('over');});
+dom.drop.addEventListener('drop',e=>{e.preventDefault();dom.drop.classList.remove('over');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
+dom.runBtn.addEventListener('click',process);
+dom.clearLog.addEventListener('click',()=>{dom.logArea.innerHTML='';log('Log limpiado.','dim');});
+dom.dlBtn.addEventListener('click',()=>{if(state.zipBlob){downloadBlob(state.zipBlob,'manifiestos.zip');log('Re-descarga iniciada.','info');}});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>e.preventDefault());
+</script>
+</body>
+</html>
