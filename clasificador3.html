@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hound Express — Clasificador de Productos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --rojo:#db0011; --rojo-osc:#a8000d;
+    --tinta:#1a1a1a; --gris:#6b7280; --gris-cl:#9ca3af;
+    --linea:#e5e7eb; --fondo:#f7f7f8; --blanco:#ffffff;
+    --verde:#16a34a; --verde-bg:#f0fdf4;
+    --ambar:#d97706; --ambar-bg:#fffbeb;
+    --rojo-bg:#fef2f2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--fondo);color:var(--tinta);line-height:1.5;font-size:14px}
+  .wrap{max-width:880px;margin:0 auto;padding:24px 20px 60px}
+
+  header{display:flex;align-items:center;gap:14px;margin-bottom:28px}
+  .logo{width:44px;height:44px;background:var(--rojo);border-radius:10px;
+        display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .logo svg{width:24px;height:24px}
+  h1{font-size:20px;font-weight:600;letter-spacing:-0.01em}
+  .sub{color:var(--gris);font-size:13px;margin-top:1px}
+
+  .card{background:var(--blanco);border:1px solid var(--linea);border-radius:14px;
+        padding:22px;margin-bottom:16px}
+  .card-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;
+              color:var(--gris);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .num{width:20px;height:20px;background:var(--rojo);color:#fff;border-radius:50%;
+       display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+
+  label{display:block;font-size:13px;font-weight:500;margin-bottom:6px;color:var(--tinta)}
+  .hint{font-size:12px;color:var(--gris-cl);font-weight:400;margin-top:4px}
+  input[type=text],input[type=password],select,textarea{
+    width:100%;padding:10px 12px;border:1px solid var(--linea);border-radius:9px;
+    font-size:14px;font-family:inherit;background:var(--blanco);color:var(--tinta);transition:border .15s}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rojo)}
+  textarea{resize:vertical;min-height:90px;line-height:1.5}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{font-size:12px;padding:5px 10px;background:var(--fondo);border:1px solid var(--linea);
+        border-radius:20px;cursor:pointer;color:var(--gris);transition:all .15s}
+  .chip:hover{border-color:var(--rojo);color:var(--rojo)}
+  .saved-tag{font-size:11px;color:var(--verde);margin-left:8px;opacity:0;transition:opacity .2s}
+  .saved-tag.show{opacity:1}
+  .link-btn{background:none;border:none;color:var(--rojo);font-size:12px;cursor:pointer;
+            font-family:inherit;padding:0;font-weight:500;text-decoration:underline}
+  .link-btn:hover{color:var(--rojo-osc)}
+  .prompt-area{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px;
+               min-height:240px;line-height:1.55;background:#fafafa}
+  .divider{border:none;border-top:1px solid var(--linea);margin:18px 0}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .field{margin-bottom:14px}
+  .field:last-child{margin-bottom:0}
+
+  .drop{border:2px dashed var(--linea);border-radius:11px;padding:30px 20px;text-align:center;
+        cursor:pointer;transition:all .15s;background:var(--fondo)}
+  .drop:hover,.drop.over{border-color:var(--rojo);background:var(--rojo-bg)}
+  .drop svg{width:32px;height:32px;color:var(--gris-cl);margin-bottom:8px}
+  .drop p{color:var(--gris);font-size:13px}
+  .drop strong{color:var(--tinta);font-weight:600}
+  .file-info{display:none;align-items:center;gap:10px;padding:12px 14px;background:var(--verde-bg);
+             border:1px solid #bbf7d0;border-radius:9px;margin-top:12px;font-size:13px}
+  .file-info svg{width:18px;height:18px;color:var(--verde);flex-shrink:0}
+
+  .btn{padding:12px 22px;border-radius:10px;border:none;font-size:14px;font-weight:600;
+       cursor:pointer;font-family:inherit;transition:all .15s;display:inline-flex;
+       align-items:center;gap:8px;justify-content:center}
+  .btn-primary{background:var(--rojo);color:#fff;width:100%}
+  .btn-primary:hover{background:var(--rojo-osc)}
+  .btn-primary:disabled{background:var(--gris-cl);cursor:not-allowed}
+  .btn-ghost{background:var(--blanco);color:var(--tinta);border:1px solid var(--linea)}
+  .btn-ghost:hover{background:var(--fondo)}
+
+  .progress-card{display:none}
+  .bar{height:8px;background:var(--linea);border-radius:6px;overflow:hidden;margin:14px 0 8px}
+  .bar-fill{height:100%;background:var(--rojo);width:0%;transition:width .3s;border-radius:6px}
+  .stats{display:flex;justify-content:space-between;font-size:13px;color:var(--gris)}
+  .stats b{color:var(--tinta)}
+
+  .preview-card{display:none}
+  .tbl-wrap{border:1px solid var(--linea);border-radius:10px;overflow:hidden;overflow-x:auto;margin-top:8px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:var(--fondo);text-align:left;padding:9px 12px;font-weight:600;font-size:11px;
+     text-transform:uppercase;letter-spacing:.04em;color:var(--gris);border-bottom:1px solid var(--linea);white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid var(--linea);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .cls{font-weight:600;color:var(--rojo)}
+  .cls.err{color:var(--gris-cl);font-weight:400;font-style:italic}
+  .desc-cell{color:var(--gris);max-width:340px}
+
+  .msg{padding:11px 14px;border-radius:9px;font-size:13px;margin-top:12px;display:none}
+  .msg.error{background:var(--rojo-bg);color:var(--rojo-osc);border:1px solid #fecaca;display:block}
+  .msg.info{background:var(--ambar-bg);color:var(--ambar);border:1px solid #fde68a;display:block}
+
+  .actions{display:flex;gap:10px;margin-top:16px}
+  .actions .btn{flex:1}
+  details{margin-top:12px;font-size:13px;color:var(--gris)}
+  summary{cursor:pointer;color:var(--rojo);font-weight:500}
+  details p{margin-top:8px;line-height:1.6}
+  a{color:var(--rojo)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+    </div>
+    <div>
+      <h1>Hound Express — Clasificador</h1>
+      <div class="sub">Clasificación de productos con IA (Groq)</div>
+    </div>
+  </header>
+
+  <!-- CONFIG -->
+  <div class="card">
+    <div class="card-title"><span class="num">1</span> Configuración</div>
+    <div class="field">
+      <label>API Key de Groq</label>
+      <input type="password" id="apiKey" placeholder="gsk_..." autocomplete="off">
+      <div class="hint">Gratis en <a href="https://console.groq.com" target="_blank">console.groq.com</a> — sin tarjeta. Se guarda solo en tu navegador.</div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Modelo</label>
+        <select id="model">
+          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (rápido, 14,400/día)</option>
+          <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (preciso, 1,000/día)</option>
+          <option value="openai/gpt-oss-120b">gpt-oss-120b (más capaz)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Velocidad (hilos)</label>
+        <select id="workers">
+          <option value="2">2 — conservador</option>
+          <option value="4" selected>4 — recomendado</option>
+          <option value="8">8 — agresivo</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="card">
+    <div class="card-title"><span class="num">2</span> Archivo Excel</div>
+    <div class="drop" id="drop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <p><strong>Arrastra tu Excel aquí</strong> o haz clic para seleccionar</p>
+      <p style="margin-top:4px;font-size:12px">.xlsx, .xls, .csv</p>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none">
+    <div class="file-info" id="fileInfo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      <span id="fileName"></span>
+    </div>
+    <div class="field" id="colField" style="display:none;margin-top:14px">
+      <label>Columna con las descripciones</label>
+      <select id="colSelect"></select>
+    </div>
+  </div>
+
+  <!-- CUSTOM INSTRUCTIONS -->
+  <div class="card">
+    <div class="card-title">
+      <span class="num">3</span> Reglas personalizadas
+      <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--gris-cl);margin-left:4px">(opcional)</span>
+      <span class="saved-tag" id="savedTag">✓ guardado</span>
+    </div>
+    <div class="field">
+      <label>Instrucciones extra para mejorar la clasificación</label>
+      <textarea id="customRules" placeholder="Ejemplo:
+- Los vapeadores y pods clasifícalos como CIGARRO ELECTRONICO
+- La marca Stanley son TERMOS, no botellas
+- Si dice 'repuesto' o 'refacción', agrégalo: REFACCION DE ..."></textarea>
+      <div class="hint">Estas reglas se guardan en tu navegador y se aplican a cada clasificación. Úsalas para corregir errores que veas seguido.</div>
+      <div class="chips">
+        <span class="chip" data-rule="Los vapeadores, vapes y pods son CIGARRO ELECTRONICO.">+ Vapeadores</span>
+        <span class="chip" data-rule="Los suplementos, proteínas y creatina son SUPLEMENTO ALIMENTICIO.">+ Suplementos</span>
+        <span class="chip" data-rule="Las refacciones y repuestos clasifícalos como REFACCION seguido del producto.">+ Refacciones</span>
+        <span class="chip" data-rule="Los juguetes para niños son JUGUETES, sin importar el personaje o marca.">+ Juguetes</span>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <details id="promptDetails">
+      <summary style="font-size:13px;font-weight:500;color:var(--rojo)">Ver y editar el prompt base (avanzado)</summary>
+      <div class="field" style="margin-top:12px">
+        <label style="display:flex;align-items:center;justify-content:space-between">
+          <span>Instrucciones base que recibe la IA</span>
+          <button class="link-btn" id="resetPrompt" type="button">Restaurar original</button>
+        </label>
+        <textarea id="basePrompt" class="prompt-area"></textarea>
+        <div class="hint">Este es el cerebro del clasificador. Las reglas de arriba se añaden al final de este texto. Si lo editas mal, usa "Restaurar original".</div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ACTION -->
+  <button class="btn btn-primary" id="runBtn" disabled>Clasificar productos</button>
+  <div class="msg" id="msg"></div>
+
+  <!-- PROGRESS -->
+  <div class="card progress-card" id="progressCard" style="margin-top:16px">
+    <div class="card-title">Procesando…</div>
+    <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+    <div class="stats">
+      <span id="progressText">0 / 0</span>
+      <span id="progressRate"></span>
+    </div>
+  </div>
+
+  <!-- PREVIEW + DOWNLOAD -->
+  <div class="card preview-card" id="previewCard" style="margin-top:16px">
+    <div class="card-title">Resultados</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Descripción</th><th>Clasificación</th></tr></thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" id="retryBtn" style="display:none">Reintentar errores</button>
+      <button class="btn btn-primary" id="downloadBtn">Descargar Excel</button>
+    </div>
+  </div>
+
+  <details>
+    <summary>¿Cómo funciona? ¿Es seguro?</summary>
+    <p>
+      Tu API key y tu archivo <strong>nunca salen de tu navegador</strong> — las descripciones se envían
+      directamente a Groq para clasificarse y el resultado se arma aquí mismo. No hay servidor intermedio.
+      La key se guarda localmente para que no la escribas cada vez.<br><br>
+      El sistema entiende el contexto: detecta negaciones ("auriculares no incluidos"),
+      accesorios incluidos, y referencias de marca. Si una fila falla (por límite de Groq),
+      queda marcada y puedes reintentar solo esas con el botón.<br><br>
+      Las <strong>reglas personalizadas</strong> que escribas se guardan en tu navegador y se
+      aplican a cada clasificación — úsalas para corregir errores que veas seguido (marcas,
+      categorías especiales, etc.).
+    </p>
+  </details>
+
+</div>
+
+<script>
+// ───────────────────────────────────────── Estado
+let rows = [], headers = [], descIdx = 0, results = [], fileName = "productos";
+let running = false;
+
+const DEFAULT_PROMPT = `Eres un clasificador experto de productos para una empresa de logística aduanal mexicana (Hound Express). Lees la descripción de un envío y produces una clasificación condensada que dice QUÉ ES el producto.
+
+RAZONAMIENTO (interno, NO lo escribas):
+1. Las comas NO siempre separan productos. Lee cada segmento antes de contar.
+2. Identifica qué ES cada producto, ignorando marcas, modelos, SKUs (ej "Phelinta Y033"), colores y especificaciones.
+3. NEGACIONES: "auriculares NO incluidos" = el producto NO trae auriculares. NO lo clasifiques como auriculares.
+4. INCLUSIONES: "cable incluido", "carga inalámbrica incluida" son accesorios, NO productos separados.
+5. REFERENCIAS: "Samsung Galaxy Buds" son audífonos (no celular). "Nothing Ear" son audífonos. Razona qué ES el objeto real.
+
+FORMATO DE SALIDA:
+- Genérico, MAYÚSCULAS (PERFUME, DRON, FUNDA PARA CELULAR)
+- Varios productos distintos → separa con coma
+- Varios del MISMO tipo → PLURAL (PERFUMES, VIDEOJUEGOS)
+- Un solo producto → singular
+- Máximo 4 palabras por producto
+
+Responde ÚNICAMENTE con la clasificación en texto plano, sin explicación, sin nada más.
+Ejemplo de respuesta: PERFUMES, FUNDA PARA CELULAR`;
+
+// ───────────────────────────────────────── Persistencia de API key
+const keyInput = document.getElementById('apiKey');
+keyInput.value = localStorage.getItem('groq_key') || '';
+keyInput.addEventListener('input', () => localStorage.setItem('groq_key', keyInput.value));
+document.getElementById('model').value = localStorage.getItem('groq_model') || 'llama-3.1-8b-instant';
+document.getElementById('model').addEventListener('change', e => localStorage.setItem('groq_model', e.target.value));
+
+// ───────────────────────────────────────── Reglas personalizadas
+const rulesInput = document.getElementById('customRules');
+rulesInput.value = localStorage.getItem('groq_rules') || '';
+let saveTimer = null;
+rulesInput.addEventListener('input', () => {
+  localStorage.setItem('groq_rules', rulesInput.value);
+  const tag = document.getElementById('savedTag');
+  tag.classList.add('show');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => tag.classList.remove('show'), 1500);
+});
+// Chips: agregan una regla de ejemplo al textarea
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const rule = chip.getAttribute('data-rule');
+    const current = rulesInput.value.trim();
+    if(current.includes(rule)) return;        // no duplicar
+    rulesInput.value = current ? current + '\n- ' + rule : '- ' + rule;
+    rulesInput.dispatchEvent(new Event('input'));
+  });
+});
+
+// ───────────────────────────────────────── Prompt base editable
+const basePromptInput = document.getElementById('basePrompt');
+basePromptInput.value = localStorage.getItem('groq_base_prompt') || DEFAULT_PROMPT;
+basePromptInput.addEventListener('input', () => {
+  localStorage.setItem('groq_base_prompt', basePromptInput.value);
+  const tag = document.getElementById('savedTag');
+  tag.classList.add('show');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => tag.classList.remove('show'), 1500);
+});
+document.getElementById('resetPrompt').addEventListener('click', () => {
+  if(confirm('¿Restaurar el prompt base al original? Se perderán tus cambios en este texto.')){
+    basePromptInput.value = DEFAULT_PROMPT;
+    localStorage.setItem('groq_base_prompt', DEFAULT_PROMPT);
+  }
+});
+
+// ───────────────────────────────────────── Carga de archivo
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+function handleFile(file){
+  if(!file) return;
+  fileName = file.name.replace(/\.[^.]+$/, '');
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = e => {
+    let wb;
+    if(ext === 'csv') wb = XLSX.read(e.target.result, {type:'string'});
+    else wb = XLSX.read(e.target.result, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    if(json.length < 2){ showMsg('El archivo parece vacío.', 'error'); return; }
+    headers = json[0].map(String);
+    rows = json.slice(1).filter(r => r.some(c => String(c).trim()));
+    setupCols();
+    document.getElementById('fileName').textContent = `${file.name} — ${rows.length} filas`;
+    document.getElementById('fileInfo').style.display = 'flex';
+    document.getElementById('colField').style.display = 'block';
+    document.getElementById('runBtn').disabled = false;
+    hideMsg();
+  };
+  if(ext === 'csv') reader.readAsText(file);
+  else reader.readAsArrayBuffer(file);
+}
+
+function setupCols(){
+  const sel = document.getElementById('colSelect');
+  sel.innerHTML = headers.map((h,i) => `<option value="${i}">${h || 'Columna '+(i+1)}</option>`).join('');
+  const guess = headers.findIndex(h => /desc|product|nombre|articulo|item/i.test(h));
+  if(guess > -1) sel.value = guess;
+}
+
+// ───────────────────────────────────────── Clasificación
+const MODEL_RPM = 28;  // límite seguro bajo 30/min del tier gratuito
+let requestTimes = [];
+
+async function throttle(){
+  // Espera si vamos a exceder RPM
+  while(true){
+    const now = Date.now();
+    requestTimes = requestTimes.filter(t => now - t < 60000);
+    if(requestTimes.length < MODEL_RPM){ requestTimes.push(now); return; }
+    const wait = 60000 - (now - requestTimes[0]) + 200;
+    await sleep(wait);
+  }
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function classifyOne(desc, apiKey, model, basePrompt, customRules, retries=4){
+  let lastErr = '';
+  const base = (basePrompt && basePrompt.trim()) ? basePrompt.trim() : DEFAULT_PROMPT;
+  const sysPrompt = customRules && customRules.trim()
+    ? base + '\n\nREGLAS ADICIONALES DEL USUARIO (tienen prioridad):\n' + customRules.trim()
+    : base;
+  for(let attempt=0; attempt<retries; attempt++){
+    await throttle();
+    try{
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey },
+        body: JSON.stringify({
+          model, max_tokens:40, temperature:0.1,
+          messages:[
+            {role:'system', content:sysPrompt},
+            {role:'user', content:'Clasifica este producto:\n'+desc}
+          ]
+        })
+      });
+      if(!resp.ok){
+        lastErr = 'HTTP '+resp.status;
+        if(resp.status === 429){ await sleep(6000*(attempt+1)); continue; }
+        if(resp.status === 401){ return 'ERROR: API key inválida'; }
+        await sleep(3000); continue;
+      }
+      const data = await resp.json();
+      const txt = (data.choices?.[0]?.message?.content || '').trim().toUpperCase();
+      if(txt) return txt;
+      lastErr = 'respuesta vacía';
+      await sleep(2000);
+    }catch(e){
+      lastErr = String(e.message || e);
+      await sleep(3000);
+    }
+  }
+  return 'ERROR: '+lastErr.slice(0,40);
+}
+
+async function runClassification(indices){
+  const apiKey = keyInput.value.trim();
+  const model = document.getElementById('model').value;
+  const workers = parseInt(document.getElementById('workers').value);
+  const customRules = rulesInput.value;
+  const basePrompt = basePromptInput.value;
+
+  if(!apiKey){ showMsg('Falta la API key de Groq.', 'error'); return; }
+
+  running = true;
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('progressCard').style.display = 'block';
+  document.getElementById('previewCard').style.display = 'block';
+  hideMsg();
+
+  const total = indices.length;
+  let done = 0;
+  const t0 = Date.now();
+
+  // Cola de trabajo con N workers concurrentes
+  let cursor = 0;
+  async function worker(){
+    while(cursor < indices.length){
+      const myIdx = indices[cursor++];
+      const desc = String(rows[myIdx][descIdx] || '').trim();
+      results[myIdx] = await classifyOne(desc, apiKey, model, basePrompt, customRules);
+      done++;
+      updateProgress(done, total, t0);
+      updatePreviewRow(myIdx);
+    }
+  }
+  await Promise.all(Array.from({length:workers}, () => worker()));
+
+  running = false;
+  document.getElementById('runBtn').disabled = false;
+  const errs = results.filter(r => r && r.startsWith('ERROR')).length;
+  if(errs > 0){
+    showMsg(`${errs} fila(s) con error. Puedes reintentar solo esas.`, 'info');
+    document.getElementById('retryBtn').style.display = 'block';
+  } else {
+    document.getElementById('retryBtn').style.display = 'none';
+  }
+}
+
+function updateProgress(done, total, t0){
+  const pct = Math.round(done/total*100);
+  document.getElementById('barFill').style.width = pct+'%';
+  document.getElementById('progressText').textContent = `${done} / ${total}`;
+  const elapsed = (Date.now()-t0)/1000;
+  const rate = done/elapsed;
+  const rem = (total-done)/rate;
+  document.getElementById('progressRate').textContent =
+    `${rate.toFixed(1)} filas/s · ~${Math.ceil(rem/60)} min restantes`;
+}
+
+// ───────────────────────────────────────── Vista previa
+function renderPreview(){
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = rows.map((r,i) => {
+    const desc = String(r[descIdx]||'').slice(0,80);
+    return `<tr id="prow-${i}">
+      <td style="color:var(--gris-cl)">${i+1}</td>
+      <td class="desc-cell">${desc}</td>
+      <td id="pcls-${i}"><span style="color:var(--gris-cl)">—</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function updatePreviewRow(i){
+  const cell = document.getElementById('pcls-'+i);
+  if(!cell) return;
+  const val = results[i] || '';
+  const isErr = val.startsWith('ERROR');
+  cell.innerHTML = `<span class="cls${isErr?' err':''}">${val}</span>`;
+}
+
+// ───────────────────────────────────────── Botones
+document.getElementById('runBtn').addEventListener('click', () => {
+  if(running) return;
+  descIdx = parseInt(document.getElementById('colSelect').value);
+  results = new Array(rows.length).fill('');
+  renderPreview();
+  runClassification(rows.map((_,i) => i));
+});
+
+document.getElementById('retryBtn').addEventListener('click', () => {
+  if(running) return;
+  const failed = results.map((r,i) => r.startsWith('ERROR') ? i : -1).filter(i => i >= 0);
+  if(failed.length === 0) return;
+  runClassification(failed);
+});
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const out = [
+    [...headers, 'CLASIFICACION'],
+    ...rows.map((r,i) => [...r, results[i] || ''])
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(out);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Clasificados');
+  XLSX.writeFile(wb, fileName + '_clasificado.xlsx');
+});
+
+// ───────────────────────────────────────── Helpers UI
+function showMsg(text, type){
+  const m = document.getElementById('msg');
+  m.textContent = text;
+  m.className = 'msg ' + type;
+}
+function hideMsg(){ document.getElementById('msg').className = 'msg'; }
+</script>
+</body>
+</html>

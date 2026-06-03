@@ -219,7 +219,7 @@ tbody tr:hover td{background:var(--grey-50)}
 <script>
 // ── Config ────────────────────────────────────────────────────────────────
 const FIXED_API_KEY = '';  // <- Pon tu Groq API key aquí
-const MODEL         = 'llama-3.3-70b-versatile';
+const MODEL         = 'llama-3.1-8b-instant';
 
 // ── State ─────────────────────────────────────────────────────────────────
 let fileData      = null;
@@ -497,7 +497,7 @@ $('runBtn').addEventListener('click', async function() {
   var reason = 'ok'; // 'ok' | 'stopped' | 'error'
 
   log('Iniciando: ' + total.toLocaleString() + ' productos', 'info');
-  log('Plan gratuito: ~30 req/min con ' + MODEL + '. Pausa automática si se alcanza el límite.', 'dim');
+  log('Plan gratuito: ~14,400 req/min con ' + MODEL + '. Velocidad máxima sin pausas.', 'dim');
 
   for (var i = 0; i < total; i++) {
 
